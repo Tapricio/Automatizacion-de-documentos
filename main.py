@@ -24,8 +24,7 @@ output_folder = filedialog.askdirectory(
     title="Selecciona carpeta destino"
 )
 
-filaPrint=1
-
+filaPrint = 1
 
 # ---------------------------------
 # Validaciones
@@ -43,17 +42,29 @@ if not output_folder:
     exit()
 
 # ---------------------------------
-# Crear carpeta "documentos generados"
+# Crear carpeta única
 # ---------------------------------
+nombre_base = "documentos generados"
+
 carpeta_generados = os.path.join(
     output_folder,
-    "documentos generados"
+    nombre_base
 )
 
-os.makedirs(
-    carpeta_generados,
-    exist_ok=True
-)
+contador = 1
+
+# si existe, crear otra
+while os.path.exists(carpeta_generados):
+
+    carpeta_generados = os.path.join(
+        output_folder,
+        f"{nombre_base} ({contador})"
+    )
+
+    contador += 1
+
+# crear carpeta final
+os.makedirs(carpeta_generados)
 
 # ---------------------------------
 # Leer Excel
@@ -69,7 +80,7 @@ for i, columna in enumerate(df.columns):
     print(f"{i + 1}. {columna}")
 
 # ---------------------------------
-# Elegir nombre archivo
+# Elegir columnas nombre archivo
 # ---------------------------------
 seleccion = input(
     "\nEscribe números separados por coma para el nombre del archivo.\nEjemplo: 1,2\n\n> "
@@ -85,37 +96,43 @@ columnas_nombre = [
     for i in indices
 ]
 
+# ---------------------------------
+# Texto adicional opcional
+# ---------------------------------
+texto_adicional = input(
+    "\nTexto adicional opcional para el nombre del archivo (ENTER para omitir):\n\n> "
+).strip()
+
 print("\nNombre archivo usará:")
 print(columnas_nombre)
 
+if texto_adicional:
+    print(f"Texto adicional: {texto_adicional}")
+
 # ---------------------------------
 # Función reemplazo
+# Mantiene formatos Word
 # ---------------------------------
 def reemplazar_en_parrafo(parrafo, reemplazos):
 
-    texto_completo = parrafo.text
-
-    # reemplazar placeholders largos primero
-    for key, value in sorted(
-        reemplazos.items(),
-        key=lambda x: len(x[0]),
-        reverse=True
-    ):
-
-        texto_completo = texto_completo.replace(
-            str(key),
-            str(value)
-        )
-
-    # limpiar runs
     for run in parrafo.runs:
-        run.text = ""
 
-    # escribir texto nuevo
-    if parrafo.runs:
-        parrafo.runs[0].text = texto_completo
-    else:
-        parrafo.add_run(texto_completo)
+        texto_run = run.text
+
+        # placeholders largos primero
+        for key, value in sorted(
+            reemplazos.items(),
+            key=lambda x: len(x[0]),
+            reverse=True
+        ):
+
+            texto_run = texto_run.replace(
+                str(key),
+                str(value)
+            )
+
+        # mantener formato original
+        run.text = texto_run
 
 # ---------------------------------
 # Generar documentos
@@ -162,6 +179,10 @@ for index, fila in df.iterrows():
 
         partes_nombre.append(valor)
 
+    # agregar texto adicional
+    if texto_adicional:
+        partes_nombre.insert(0, texto_adicional)
+
     nombre_archivo = " ".join(partes_nombre)
 
     # limpiar caracteres inválidos
@@ -186,6 +207,7 @@ for index, fila in df.iterrows():
     doc.save(ruta_salida)
 
     print(f"Generado: {filaPrint} | Nombre archivo: {nombre_archivo}")
-    filaPrint+=1
+
+    filaPrint += 1
 
 print("\nProceso terminado")
