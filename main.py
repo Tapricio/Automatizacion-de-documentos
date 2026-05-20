@@ -3,6 +3,14 @@ import pandas as pd
 from docx import Document
 from tkinter import Tk, filedialog
 import os
+import win32com.client
+
+# ---------------------------------
+# Inicio
+# ---------------------------------
+print("\n==============================")
+print(" GENERADOR MASIVO DE DOCUMENTOS ")
+print("==============================\n")
 
 # ---------------------------------
 # Selección archivos
@@ -11,22 +19,28 @@ root = Tk()
 root.withdraw()
 root.attributes('-topmost', True)
 
+print("1) Selecciona el archivo Excel...\n")
+
 excel_path = filedialog.askopenfilename(
     title="Selecciona Excel",
     filetypes=[("Excel", "*.xlsx")]
 )
+
+print("2) Selecciona la plantilla Word...\n")
 
 template_path = filedialog.askopenfilename(
     title="Selecciona Word",
     filetypes=[("Word", "*.docx")]
 )
 
+print("3) Selecciona la carpeta donde se guardarán los documentos...\n")
+
 output_folder = filedialog.askdirectory(
     title="Selecciona carpeta destino"
 )
 
 nombre_base = input(
-    "\nEscribe el nombre de la carpeta donde guardarás los documentos:\n\n> "
+    "\n4) Escribe el nombre de la carpeta donde guardarás los documentos:\n\n> "
 ).strip() or "documentos generados"
 
 filaPrint = 1
@@ -49,6 +63,8 @@ if not output_folder:
 # ---------------------------------
 # Crear carpeta única
 # ---------------------------------
+print("\nCreando carpeta de documentos...\n")
+
 carpeta_generados = os.path.join(
     output_folder,
     nombre_base
@@ -70,6 +86,8 @@ os.makedirs(carpeta_generados)
 # ---------------------------------
 # Leer Excel
 # ---------------------------------
+print("Leyendo Excel...\n")
+
 df = pd.read_excel(excel_path)
 
 # ---------------------------------
@@ -225,7 +243,6 @@ def reemplazar_en_parrafo(parrafo, reemplazos):
         inicio = coincidencia.start()
         fin = coincidencia.end()
 
-        # texto antes placeholder
         if inicio > ultima_pos:
 
             segmentos.append(
@@ -235,14 +252,12 @@ def reemplazar_en_parrafo(parrafo, reemplazos):
                 )
             )
 
-        # valor reemplazo
         valor_reemplazo = str(
             reemplazos[
                 coincidencia.group(0)
             ]
         )
 
-        # usar formato exacto del placeholder
         formato_reemplazo = (
             formato_por_caracter[inicio]
             if inicio < len(formato_por_caracter)
@@ -258,7 +273,6 @@ def reemplazar_en_parrafo(parrafo, reemplazos):
 
         ultima_pos = fin
 
-    # texto restante
     if ultima_pos < len(texto_original):
 
         segmentos.append(
@@ -268,19 +282,16 @@ def reemplazar_en_parrafo(parrafo, reemplazos):
             )
         )
 
-    # limpiar runs
     for run in list(parrafo.runs):
         run._element.getparent().remove(
             run._element
         )
 
-    # reconstruir
     for texto_segmento, formato_segmento in segmentos:
 
         if not texto_segmento:
             continue
 
-        # placeholder reemplazado
         if isinstance(formato_segmento, dict):
 
             run = parrafo.add_run(
@@ -336,13 +347,14 @@ def reemplazar_en_parrafo(parrafo, reemplazos):
 # ---------------------------------
 # Generar documentos
 # ---------------------------------
+print("\nGenerando documentos Word...\n")
+
 for index, fila in df.iterrows():
 
     doc = Document(template_path)
 
     reemplazos = {}
 
-    # crear reemplazos
     for columna in df.columns:
 
         valor = fila[columna]
@@ -353,9 +365,6 @@ for index, fila in df.iterrows():
             else valor
         )
 
-    # ---------------------------------
-    # Párrafos
-    # ---------------------------------
     for p in doc.paragraphs:
 
         reemplazar_en_parrafo(
@@ -363,9 +372,6 @@ for index, fila in df.iterrows():
             reemplazos
         )
 
-    # ---------------------------------
-    # Tablas
-    # ---------------------------------
     for table in doc.tables:
 
         for row in table.rows:
@@ -379,9 +385,6 @@ for index, fila in df.iterrows():
                         reemplazos
                     )
 
-    # ---------------------------------
-    # Nombre archivo
-    # ---------------------------------
     partes_nombre = []
 
     for col in columnas_nombre:
@@ -405,7 +408,6 @@ for index, fila in df.iterrows():
         partes_nombre
     )
 
-    # limpiar caracteres inválidos
     caracteres_invalidos = r'\/:*?"<>|'
 
     for c in caracteres_invalidos:
@@ -417,24 +419,17 @@ for index, fila in df.iterrows():
 
     nombre_archivo += ".docx"
 
-    # ---------------------------------
-    # Ruta final
-    # ---------------------------------
     ruta_salida = os.path.join(
         carpeta_generados,
         nombre_archivo
     )
 
-    # ---------------------------------
-    # Guardar documento
-    # ---------------------------------
     doc.save(ruta_salida)
 
-    # guardar SOLO nombre archivo
     df.at[index, "Adjuntos"] = nombre_archivo
 
     print(
-        f"Generado: {filaPrint} | Nombre archivo: {nombre_archivo}"
+        f"Generado: {filaPrint} | {nombre_archivo}"
     )
 
     filaPrint += 1
@@ -442,9 +437,121 @@ for index, fila in df.iterrows():
 # ---------------------------------
 # Guardar Excel actualizado
 # ---------------------------------
+print("\nActualizando Excel...\n")
+
 df.to_excel(
     excel_path,
     index=False
 )
 
-print("\nProceso terminado")
+print("\nProceso de generación de Words terminado")
+
+# ---------------------------------
+# Conversión PDF
+# ---------------------------------
+print("\nIniciando conversión de Word a PDF...\n")
+
+carpeta_origen = carpeta_generados
+
+carpeta_destino_base = os.path.dirname(
+    carpeta_generados
+)
+
+carpeta_origen = os.path.abspath(
+    carpeta_origen
+)
+
+carpeta_destino_base = os.path.abspath(
+    carpeta_destino_base
+)
+
+nombre_base = (
+    os.path.basename(carpeta_origen)
+    + " pdf"
+)
+
+carpeta_pdf = os.path.join(
+    carpeta_destino_base,
+    nombre_base
+)
+
+contador = 1
+base_original = carpeta_pdf
+
+while os.path.exists(carpeta_pdf):
+
+    carpeta_pdf = (
+        f"{base_original} ({contador})"
+    )
+
+    contador += 1
+
+os.makedirs(carpeta_pdf)
+
+word = win32com.client.DispatchEx(
+    "Word.Application"
+)
+
+word.Visible = False
+
+wdFormatPDF = 17
+
+archivos = [
+    f for f in os.listdir(carpeta_origen)
+    if f.lower().endswith(".docx")
+]
+
+total = len(archivos)
+
+for i, archivo in enumerate(archivos, start=1):
+
+    ruta_docx = os.path.abspath(
+        os.path.join(carpeta_origen, archivo)
+    )
+
+    nombre_pdf = (
+        os.path.splitext(archivo)[0]
+        + ".pdf"
+    )
+
+    ruta_pdf = os.path.abspath(
+        os.path.join(carpeta_pdf, nombre_pdf)
+    )
+
+    try:
+
+        doc = word.Documents.Open(
+            ruta_docx,
+            ReadOnly=True
+        )
+
+        doc.SaveAs(
+            ruta_pdf,
+            FileFormat=wdFormatPDF
+        )
+
+        doc.Close(False)
+
+        print(
+            f"[{i}/{total}] Convertido: {nombre_pdf}"
+        )
+
+    except Exception as e:
+
+        print(
+            f"\nError en:\n{ruta_docx}\n"
+        )
+
+        print(e)
+
+# ---------------------------------
+# Cerrar Word
+# ---------------------------------
+word.Quit()
+
+print("\n==============================")
+print(" PROCESO TERMINADO ")
+print("==============================")
+
+print(f"\nWords guardados en:\n{carpeta_generados}")
+print(f"\nPDFs guardados en:\n{carpeta_pdf}")
